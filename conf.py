@@ -12,7 +12,10 @@ number_of_neighbors = 1
 
 
 class Conf:
-    def get_nodes():
-        """get the list of nodes"""
-        pass
+    def get_n_k(self):
+        """get the value of k and n"""
+        
+        """for this milestone, we return a hardcoded value"""
+        return 1,2
+        
 

@@ -4,62 +4,126 @@
 # In[ ]:
 
 
+import socket
+import time
+import logging
+import threading
+from threading import Thread
 
-class seller:
-    
-    def item_selection():
-        """pick one of three items to sell"""
-        pass
-    def announcement(product_name):
-        """reduce the hop count value and if hop count>0 find buyers by announcing what you wish to sell"""
-        pass
-    def reply(buyerID, sellerID):
-        """this is a reply message to buyerID with the peerID of the seller"""
-    
-    def receive(item):
-        """check if you have this item, sends back a response that traverses in the reverse direction back to the buyer. 
-        otherwise pass it to neighbors if --hop count is not zero"""
-        pass
-    def sell(self)
-        """Each seller starts with m items (e.g., m boars) to sell;
-        upon selling all m items, the seller picks another item at random and 
-        becomes a seller of that item"""
-        """a seller waits for lookup requests from other peers and sends back a reply for each match. 
-        Each lookup request is also propagated to all its neighbors."""
-        
-        
-    
-    
-class buyer:
-    def lookup (product_name,hopcount):
-        """this procedure should search the network; 
-        all matching sellers respond to this message with their IDs using a reply(buyerID, sellerID) call.
-        The hop count is decremented at each hop and the message is discarded when it reaches 0.
-        """
-        pass
-    def item_selection():
-        """randomly pick an item and attempt to purchase it"""
-        pass
 
-    def announce(product_name):
-        """find sellers by announcing what you wish to buy"""
-        pass
-    def buy(sellerID):
-        """if multiple sellers respond, the buyer picks one at random
-        and contacts it directly with the buy message. 
-        
-        A buy causes the seller to decrement the number of items in stock.
-        """
-        pass
+# In[ ]:
+
+
+start_time = 0.0
+
+
+# In[ ]:
+
+
+def seller(node_ID,product_to_sell,neighbor_IPs,port_number):
+    class ClientThread(threading.Thread):
+        def __init__(self,clientAddress,clientsocket):
+            threading.Thread.__init__(self)
+            self.csocket = clientsocket
+            #print ("New connection added: ", clientAddress)
+        def run (self):
+            """waits for lookup requests"""
+            #print ("Connection from : ", clientAddress)
+            #self.csocket.send(bytes("Hi, This is from Server..",'utf-8'))
+            msg = ''
+            while True:
+                data = self.csocket.recv(2048)
+                msg = data.decode()
+                if msg:
+                    #print('this is the message arrived from buyer ',msg)
+                    #print(msg.split(','))
+                    buyer_ID = msg.split(',')[0]
+
+                    neighbor_ID = msg.split(',')[1]
+                    product_name = msg.split(',')[2]
+                    message_type = msg.split(',')[3]
+
+                    if message_type=='bye':
+                        break
+                    #print ("from client", msg)
+                    if product_name ==product_to_sell and message_type =='announce':
+                        """seller receives the announcement form neighbor"""
+                        new_message = node_ID+','+node_ID+','+product_name+','+'negotiate'
+                    elif product_name ==product_to_sell and message_type =='negotiate':
+                        """the buyer contacted me about buying the product that I have"""
+                        new_message = node_ID+','+node_ID+','+product_name+','+'sold'
+                    elif product_name !=product_to_sell and message_type =='announce':
+                        """we do not have this item on the market"""
+                        new_message = node_ID+','+node_ID+','+product_name+','+'not_exist'
+                    self.csocket.send(bytes(new_message,'UTF-8'))
     
-    def buy_process():
-        product_name = item_selection()
-        """then waits a random amount of time, then picks another item to buy and so on"""
-        """the buyer specifies a product_name using lookup. 
-           Upon receiving replies, the buyer peer picks one matching seller
-           and then connects directly to that peer to finish the transaction."""
+    seller_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    seller_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    # lets listen to the neighbors
+    for neighbor_IP in neighbor_IPs:
+        seller_socket.bind((neighbor_IP, port_number))
+    seller_socket.listen(1)
+    clientsock, clientAddress = seller_socket.accept()
+    newthread = ClientThread(clientAddress, clientsock)
+    newthread.start()
         
+def announce(node_ID,target_product,neighbor_IPs,port_number):
     
+    """here the buyer announce his request to all neighbors.
+    for this milestone, we assume as there are only two nodes in the network, 
+    we do not need to get the list of neighbors from the network script"""
+    
+    global start_time
+    # we set the begining of the announcement phase as start time 
+    start_time = round(time.time() * 1000) 
+    for neighbor_IP in neighbor_IPs:
+        buyer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        buyer_socket.connect((neighbor_IP, port_number))
+        new_message = node_ID+','+node_ID+','+target_product+','+'announce'
+        buyer_socket.sendall(bytes(new_message,'UTF-8'))
+    return buyer_socket
+    
+def buyer(node_ID,target_product,neighbor_IPs,port_number):
+    """
+    buyer process starts with announcing the item that he/she wishes to buy
+    """
+    buyer_socket =announce(node_ID,target_product,neighbor_IPs,port_number)
+    bought_target_item = False
+    global start_time
+    
+    """waiting to receive reply messages from neighbors"""
+    
+    while not bought_target_item:
+        in_data =  buyer_socket.recv(1024)
+        received_from_neighbor = in_data.decode()
+        if received_from_neighbor:
+            buyer_ID = received_from_neighbor.split(',')[0]
+            neighbor_ID = received_from_neighbor.split(',')[1]
+            product_name = received_from_neighbor.split(',')[2]
+            message_type = received_from_neighbor.split(',')[3]
+            if message_type=='negotiate':# means the seller has the item and wants to sell it
+                new_message = node_ID+','+node_ID+','+target_product+','+'negotiate'
+                buyer_socket.sendall(bytes(new_message,'UTF-8'))
+                waiting_flag = True
+            elif message_type=='sold':# means the seller has sold the item to me.
+                
+                end_time = round(time.time() * 1000)
+                print("buyer bought ",target_product,'from ',neighbor_ID)
+                end_time = round(time.time() * 1000)
+                print(" **** Transaction time: %s milliseconds ****"%(end_time - start_time))
+                bought_target_item = True
+                break
+            elif message_type=='not_exist':# means the seller does not have this item!
+                end_time = round(time.time() * 1000)
+                print("buyer could not buy ",target_product,'from ',neighbor_ID,'. Seller did not have it!')
+                end_time = round(time.time() * 1000)
+                print(" **** Transaction time: %s milliseconds ****"%(end_time - start_time))
+                bought_target_item = True
+                break
+            else:
+                #pass
+                print('this is the message we do not captuate from seller ',received_from_neighbor)
+    buyer_socket.close()
 
 
 # In[ ]:
