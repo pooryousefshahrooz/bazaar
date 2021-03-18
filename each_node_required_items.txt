@@ -1,0 +1,7 @@
+1:fish
+1:boar
+1:salt
+1:pen
+1:book
+1:paper
+1:time

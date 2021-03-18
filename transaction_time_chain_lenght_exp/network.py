@@ -20,23 +20,9 @@ class Network:
     def get_nodes(self):
         """returns a list of nodes in the network"""
         
-        nodes = set([])
-        network_topology_file = open('network_topology.txt', "r")
-        for line in network_topology_file:
-            if line:
-                edge = line.split(',')
-                neighbor1 = edge[0]
-                neighbor1 = neighbor1.replace('\n','')
-                neighbor1 = neighbor1.replace('\t','')
-                neighbor2 = edge[1]
-                neighbor2 = neighbor2.replace('\n','')
-                neighbor2 = neighbor2.replace('\t','')   
-                neighbor1 = neighbor1.replace('"', '')
-                neighbor2 = neighbor2.replace('"', '')
-                nodes.add(neighbor1)
-                nodes.add(neighbor2)
+        """for this milestone, we return a hardcoded list"""
         
-        return list(nodes)
+        return ['1','2']
     
     def get_node_IP(self,node_ID):
         
